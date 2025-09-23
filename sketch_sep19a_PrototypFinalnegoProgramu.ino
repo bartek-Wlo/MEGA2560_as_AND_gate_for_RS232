@@ -16,8 +16,6 @@ Komunikacja: Tx0 Rx0 - Port RS232 w PC |  Piny T/Rx0 muszą być rozwarte przy w
 #define BOUND_UHF 115200  
 #define BOUND_HF 38400 
 
-static bool workAsSnifer = true; // else work as AND gate
-
 SoftwareSerial Serial_4(50, 51); // Pin 50 Rx4,  Pin 51 Tx4,   TYLKO UHF!
 serialData serialData1, serialData2, serialData3, serialData4;
 
@@ -39,7 +37,7 @@ void setup() {
 
   while (!Serial) { ; }
   delay(100);
-  Serial.println("\n--- MEGA2560 - uruchomiona - 23IX2025 ---");
+  Serial.println("\n--- MEGA2560 - uruchomiona - AND gate MODE ---");
 }
 
 void loop() {
@@ -50,8 +48,8 @@ void loop() {
     handleSerialPort_UHF(Serial_4, Serial3, serialData4, "04");
   } else {
     handleSerialPort_HF_CZUJNIK(Serial1, Serial2, serialData1, "01");
-    handleSerialPort_HF_PC(Serial2, Serial1, serialData2, "02");
-    handleSerialPort_UHF_CZUJNIK(Serial3, Serial1, serialData3, "03");
+    handleSerialPort_HF_PC(Serial2, Serial3, Serial1, serialData2, "02");
+    handleSerialPort_UHF_CZUJNIK(Serial3, Serial2, serialData3, "03");
     /* Port 04 (UHF) jest ingnorowany w tym trybie pracy */
   }
   handleSerialPortCommunication(Serial);

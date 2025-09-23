@@ -1,5 +1,11 @@
 #include "SNIF.h"
 extern SoftwareSerial Serial_4;
+static bool workAsSnifer = false; // else work as AND gate
+static bool allowWrite = false;
+const byte turnToSnif[4] = {0x55, 0x33, 0x0F, 0xCC};
+const byte turnToAndG[4] = {0x55, 0x33, 0xF0, 0xCC};
+const byte writeModON[4] = {0x55, 0x33, 0xEE, 0xCC};
+
  
 void handleSerialPort_HF(Stream& readingSerial, Stream& writingSerial, serialData& sd, const char* SerialNum) {
   if (readingSerial.available()) {
@@ -45,6 +51,7 @@ void handleSerialPort_UHF(Stream& readingSerial, Stream& writingSerial, serialDa
 }
 
 void handleSerialPortCommunication(HardwareSerial& comSerial) {
+  static byte buffer[4] = {0x00}, ordered[4]; static int pos = 0; /*ring buffer*/
   static bool FirstChar = true;
   static char hexChar1, hexChar2;
   if (comSerial.available()) {
@@ -52,18 +59,37 @@ void handleSerialPortCommunication(HardwareSerial& comSerial) {
     if(isHexadecimalDigit(hexCharTem)) {
       if(FirstChar) { 
         hexChar1 = hexCharTem; 
-        FirstChar = false; comSerial.write(hexChar1);
+        FirstChar = false; 
       } else /*SecondChar*/ { 
         hexChar2 = hexCharTem; 
-        FirstChar = true; comSerial.write(hexChar2);
+        FirstChar = true; 
       
         byte value = hexToByte(hexChar1) * 16 + hexToByte(hexChar2);  
         
-        Serial1.write(value); 
-        Serial2.write(value);
-        Serial3.write(value);
-        Serial_4.write(value);
+        Serial.print("\n00: "); printHex(value);
+        if(allowWrite) {
+          Serial.print(" sent to all.");
+          Serial1.write(value); 
+          Serial2.write(value);
+          Serial3.write(value);
+          Serial_4.write(value);
+        }
+
+        buffer[pos] = value;
+        pos = (pos + 1) % 4;
+        for (int i = 0; i < 4; ++i) { ordered[i] = buffer[(pos + i) % 4]; }
+        if (memcmp(ordered, turnToSnif, 4) == 0) {
+          allowWrite=false;  workAsSnifer=true;
+          Serial.println("\n--- MEGA2560 ---------------  SNIFER MODE  ---");
+        } else if (memcmp(ordered, turnToAndG, 4) == 0) {
+          allowWrite=false;  workAsSnifer=false;
+          Serial.println("\n--- MEGA2560 --------------- AND gate MODE ---");
+        } else if (memcmp(ordered, writeModON, 4) == 0) {
+          allowWrite = !allowWrite;
+          if(allowWrite) Serial.println("\n--- MEGA2560 --------------- Write MODE ON ---");
+          else Serial.println("\n--- MEGA2560 --------------- Write MODE OFF---");
+        }
       }
-    } //else  if (hexCharTem == '\n' || hexCharTem == '\r')
+    } //else  if (hexCharTem == '\n' || hexCharTem == '\r') 55 33 CC 0F/F0
   }
 }

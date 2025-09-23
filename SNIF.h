@@ -1,0 +1,12 @@
+#ifndef SNIF_H
+#define SNIF_H
+
+#include <Arduino.h> 
+#include <SoftwareSerial.h>
+#include "HexFun.h"
+
+void handleSerialPort_HF (Stream& readingSerial, Stream& writingSerial, serialData& sd, const char* SerialNum);
+void handleSerialPort_UHF(Stream& readingSerial, Stream& writingSerial, serialData& sd, const char* SerialNum);
+void handleSerialPortCommunication(HardwareSerial& comSerial);
+
+#endif

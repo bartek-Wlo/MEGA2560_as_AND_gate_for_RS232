@@ -1,10 +1,10 @@
 #include "SNIF.h"
 extern SoftwareSerial Serial_4;
-static bool workAsSnifer = false; // else work as AND gate
-static bool allowWrite = false;
-const byte turnToSnif[4] = {0x55, 0x33, 0x0F, 0xCC};
-const byte turnToAndG[4] = {0x55, 0x33, 0xF0, 0xCC};
-const byte writeModON[4] = {0x55, 0x33, 0xEE, 0xCC};
+static bool workAsSnifer = false; // else work as AND gate, Tryb pracy programu
+static bool allowWrite = false; // Gdy true - dane przesłane do Serial0 zostają wysłane przez MEGA2560 do wszystich pozostałych Serial 1-4
+const byte turnToSnif[4] = {0x55, 0x33, 0x0F, 0xCC}; // SNIF
+const byte turnToAndG[4] = {0x55, 0x33, 0xF0, 0xCC}; // AND
+const byte writeModON[4] = {0x55, 0x33, 0xEE, 0xCC}; // Włącza allowWrite
 
  
 void handleSerialPort_HF(Stream& readingSerial, Stream& writingSerial, serialData& sd, const char* SerialNum) {

@@ -10,7 +10,7 @@
 struct serialData {
   unsigned mesLength = 0;
   unsigned long mesTime = 0;
-  char buffer[BUFFER_SIZE];
+  unsigned char buffer[BUFFER_SIZE];
 };
 
 inline byte hexToByte(char hexChar) {

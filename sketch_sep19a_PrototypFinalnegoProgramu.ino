@@ -42,15 +42,16 @@ void setup() {
 
 void loop() {
   if(workAsSnifer) {
-    handleSerialPort_HF(Serial1, Serial2, serialData1, "01");
-    handleSerialPort_HF(Serial2, Serial1, serialData2, "02");
-    handleSerialPort_UHF(Serial3, Serial_4, serialData3, "03");
-    handleSerialPort_UHF(Serial_4, Serial3, serialData4, "04");
+    handleSerialPort_HF(Serial1, Serial2, serialData1, "S01");
+    handleSerialPort_HF(Serial2, Serial1, serialData2, "S02");
+    handleSerialPort_UHF(Serial3, Serial_4, serialData3, "S03");
+    handleSerialPort_UHF(Serial_4, Serial3, serialData4, "S04");
   } else {
     handleSerialPort_HF_CZUJNIK(Serial1, Serial2, serialData1, "01");
     handleSerialPort_HF_PC(Serial2, Serial3, Serial1, serialData2, "02");
     handleSerialPort_UHF_CZUJNIK(Serial3, Serial2, serialData3, "03");
     /* Port 04 (UHF) jest ingnorowany w tym trybie pracy */
+    czujnikiANDgate(Serial2);
   }
   handleSerialPortCommunication(Serial);
 }

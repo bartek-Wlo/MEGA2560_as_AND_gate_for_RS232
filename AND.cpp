@@ -1,7 +1,11 @@
 #include "AND.h"
 
-static unsigned int LiczbaOdpowiedziUHF = 0; // Liczba Odpowiedzi Od wysłania zapytania o antene.
-static bool inicjalizacja = false;
+static unsigned int LiczbaOdpowiedziUHF = 0;   // Liczba Odpowiedzi czujnika UHF Od wysłania zapytania PC o wykrycie anteny.
+static bool inicjalizacja = false;             // Czy właśnie trwa inicjalizacja czujników
+static bool UHF_flag = false, HF_flag = false; // Czy już sprawdzono stan anteny HF i UHF 
+static bool antenaUHFdobra = false, antena_HFdobra = false; // Stan sprawdzonej anteny
+static bool HFbuffer[16];  static unsigned int position;    // Bufor zapisujący poprzednie stany anteny do porównania z aktualnymi stanami drugiej anteny.
+// strncpy(HFbuffer,  sd.buffer, HFlength);
 
 void handleSerialPort_HF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial& writingSerial, serialData& sd, const char* SerialNum) {
   static const int ERROR_LENGTH = 6, WYKRYTO_LENGTH = 17, COM_ERROR_LENGTH = 7;
@@ -24,11 +28,11 @@ void handleSerialPort_HF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial& 
     if ((  sd.mesLength!=0  )&&(  readingSerial.available() >= sd.mesLength-1  )) {
       readingSerial.readBytes(sd.buffer +1, sd.mesLength -1);
 
-      if     (memcmp(sd.buffer, nieWykryto, ERROR_LENGTH)==0)                                                                 {writingSerial.write(wykryto, WYKRYTO_LENGTH);  Serial.print("> > > > > > > > > > > > > Antena HF not detect ");}
-      else if(memcmp(sd.buffer, error_comunication, COM_ERROR_LENGTH)==0 || memcmp(sd.buffer, error_antena, ERROR_LENGTH)==0) {writingSerial.write(wykryto, WYKRYTO_LENGTH);  Serial.print("> ! > ! > ! > ! > ! > ! > Communication ERROR ");}
-      else if(sd.buffer[2]==0xB0 && sd.buffer[3]==0x00)                       {writingSerial.write(nieWykryto, ERROR_LENGTH); Serial.print(" Detect: HF");}
-      else if(sd.buffer[2]==0x81 || sd.buffer[2]==0x63 || sd.buffer[2]==0x52) {writingSerial.write(sd.buffer, sd.mesLength);  Serial.print("\nIn: INICJALIZACJA HF, ");}
-      else                                                                    {writingSerial.write(sd.buffer, sd.mesLength);  Serial.print("\nIn: unknown, ");}
+      if     (memcmp(sd.buffer, nieWykryto, ERROR_LENGTH)==0)                                                                 {HF_flag=true,   antena_HFdobra=false;          Serial.print("\n> > > > > > > > > > > > > Antena HF not detect ");}
+      else if(memcmp(sd.buffer, error_comunication, COM_ERROR_LENGTH)==0 || memcmp(sd.buffer, error_antena, ERROR_LENGTH)==0) {writingSerial.write(sd.buffer, sd.mesLength);  Serial.print("\n> ! > ! > ! > ! > ! > ! > Communication ERROR ");}
+      else if(sd.buffer[2]==0xB0 && sd.buffer[3]==0x00)                       { Serial.print("\nDetect: HF, ");          HF_flag=true,  antena_HFdobra=true;}
+      else if(sd.buffer[2]==0x81 || sd.buffer[2]==0x63 || sd.buffer[2]==0x52) { Serial.print("\nINICJALIZACJA HF, ");  writingSerial.write(sd.buffer, sd.mesLength);}
+      else                                                                    { Serial.print("\nelse, ");              writingSerial.write(sd.buffer, sd.mesLength);}
 
       /*Serial.print("\n");*/ Serial.print(SerialNum); Serial.print(": ");
       for (int i = 0; i < sd.mesLength; ++i) {printHex(sd.buffer[i]);}
@@ -58,8 +62,8 @@ void handleSerialPort_UHF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial&
       if(inicjalizacja==false) {
         ++LiczbaOdpowiedziUHF;  
         if(LiczbaOdpowiedziUHF == 3) {
-          if(sd.buffer[1]==0x12)       {writingSerial.write(GoodRes, GoodResL);Serial.print("\n Detect: UHF ");}
-          else if (sd.buffer[1]==0x00) {writingSerial.write(badRes, badResL);  Serial.print("\n>>>>>>>>>>>>>>>>>>>>>>>>> Antena UHF not detect ");}
+          if(sd.buffer[1]==0x12)       {UHF_flag=true,  antenaUHFdobra=true;  Serial.print("\n Detect: UHF ");}
+          else if (sd.buffer[1]==0x00) {UHF_flag=true,  antenaUHFdobra=false; Serial.print("\n>>>>>>>>>>>>>>>>>>>>>>>>> Antena UHF not detect ");}
         } else Serial.print("\n");
       } else Serial.print("\n");
 
@@ -116,10 +120,12 @@ void UHF_init(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial,
   static const char okRes7[okHFresponse] = {0x06, 0x00, 0x63, 0x00, 0x86, 0x07};
   static const char okRes8[okHFresponse] = {0x06, 0x00, 0x52, 0x00, 0xFC, 0xA8};
 
+  static const char UHFinit0[UHFL] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; 
   static const char UHFinit1[UHFL] = {0x01, 0x00, 0x00, 0xF0, 0x18, 0x00, 0x00, 0x00};
   static const char UHFinit2[UHFL] = {0x01, 0x00, 0x14, 0x01, 0xC8, 0x00, 0x00, 0x00};
   static const char UHFinit3[UHFL] = {0x01, 0x00, 0x06, 0x07, 0xC8, 0x00, 0x00, 0x00};
   static const char UHFinit4[UHFL] = {0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00};
+  
 
   if(memcmp(sd.buffer, pyt1, pytL1) == 0) {
     inicjalizacja=true;
@@ -129,4 +135,18 @@ void UHF_init(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial,
     inicjalizacja=false;
     writing_HF_Serial.write(pyt8, pytL8);
   } else writing_HF_Serial.write(sd.buffer, sd.mesLength);
+}
+
+
+
+void czujnikiANDgate(HardwareSerial& writingSerial) {
+  static const int LENGTH = 6, WYKRYTO_LENGTH = 17;
+  static const char nieWykryto[LENGTH] = {0x06, 0x00, 0xB0, 0x01, 0x5C, 0x63};
+  static const char wykryto[WYKRYTO_LENGTH] = {0x11, 0x00, 0xB0, 0x00, 0x01, 0x03, 0x00, 0xE0, 0x16, 0x80, 0xFF, 0x08, 0x00, 0x50, 0x24, 0x80, 0x75};  /*13,56 MHz Transponder, ISO15693 Tags*/
+  if(UHF_flag && HF_flag) {
+    if(antenaUHFdobra && antena_HFdobra) {writingSerial.write(wykryto, WYKRYTO_LENGTH); Serial.println("\nXX: DOBRA antena");}
+    else {writingSerial.write(nieWykryto, LENGTH); Serial.println("\nXX: ZŁA antena");}
+    UHF_flag = false;
+    HF_flag = false;
+  }
 }

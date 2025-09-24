@@ -13,4 +13,6 @@ void handleSerialPort_UHF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial&
 void handleSerialPort_HF_PC(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial, HardwareSerial& writing_HF_Serial, serialData& sd, const char* SerialNum);
 void UHF_init(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial, HardwareSerial& writing_HF_Serial, serialData& sd);
 
+void czujnikiANDgate(HardwareSerial& writingSerial);
+
 #endif

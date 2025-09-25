@@ -17,7 +17,7 @@ void handleSerialPort_HF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial& 
   if (readingSerial.available()) {
     if ((  sd.mesLength!=0  )&&(  millis()-sd.mesTime > FRAME_TIMEOUT  )) {
       sd.mesLength = 0;
-      Serial.print("\nHF Serial "); Serial.print(SerialNum); Serial.print(" TIME OUT !");
+      Serial.print("\nHF Serial "); Serial.print(SerialNum); Serial.print(": TIME OUT !");
     }
     if (sd.mesLength == 0) {
       sd.mesLength = readingSerial.read();
@@ -46,15 +46,17 @@ void handleSerialPort_UHF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial&
   static const char GoodRes[GoodResL] = {0x11, 0x00, 0xB0, 0x00, 0x01, 0x03, 0x00, 0xE0, 0x16, 0x80, 0xFF, 0x08, 0x00, 0x50, 0x24, 0x80, 0x75};
   static const char ErrorRes[badResL] = {0x06, 0x00, 0xB0, 0x81, 0x54, 0xE7};
   static const char badRes[badResL] = {0x06, 0x00, 0xB0, 0x01, 0x5C, 0x63};
+  static const char UHFinit0[UHF_MESSAGE_LENGTH] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   if (readingSerial.available()) {
-    if((  sd.mesLength!=0  )&&(  millis()-sd.mesTime > FRAME_TIMEOUT  )) {
+    if((  sd.mesLength!=0  )&&(  millis()-sd.mesTime > FRAME_UHF_TIMEOUT  )) {
+      if(memcmp(sd.buffer, UHFinit0, sd.mesLength) == 0) writingSerial.write(UHFinit0, UHF_MESSAGE_LENGTH);
+      Serial.print("\nUHF Serial "); Serial.print(SerialNum); Serial.print(": TIME OUT !");
+      Serial.print(millis()-sd.mesTime); Serial.print(" [ms]: "); for (int i = 0; i < sd.mesLength; ++i) {printHex(sd.buffer[i]);}
       sd.mesLength = 0;
-      Serial.print("\nUHF Serial "); Serial.print(SerialNum); Serial.print(" TIME OUT !");
-      Serial.print(millis()); Serial.print("-"); Serial.print(sd.mesTime);
     }
   
     if(sd.mesLength < UHF_MESSAGE_LENGTH) {
-      if(sd.mesLength == 0) sd.mesTime = millis();
+      sd.mesTime = millis();
       sd.buffer[sd.mesLength++] = readingSerial.read();
     } 
     if(sd.mesLength >= UHF_MESSAGE_LENGTH) {
@@ -76,13 +78,13 @@ void handleSerialPort_UHF_CZUJNIK(HardwareSerial& readingSerial, HardwareSerial&
 
 
 void handleSerialPort_HF_PC(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial, HardwareSerial& writing_HF_Serial, serialData& sd, const char* SerialNum) {
-  static const int zapytanie_HF_LENGTH = 7, zapytanie_UHF_LENGTH = 8;
+  static const int zapytanie_HF_LENGTH = 7;
   static const char zapytanie_HF[zapytanie_HF_LENGTH] = {0x07, 0xFF, 0xB0, 0x01, 0x00, 0x1C, 0x56};
-  static const char zapytanie_UHF[zapytanie_UHF_LENGTH] = {0x01, 0x00, 0x00, 0xF0, 0x10, 0x00, 0x00, 0x00};
+  static const char zapytanie_UHF[UHF_MESSAGE_LENGTH] = {0x01, 0x00, 0x00, 0xF0, 0x10, 0x00, 0x00, 0x00};
   if (readingSerial.available()) {
     if ((  sd.mesLength!=0  )&&(  millis()-sd.mesTime > FRAME_TIMEOUT  )) {
       sd.mesLength = 0;
-      Serial.print("\nHF Serial "); Serial.print(SerialNum); Serial.print(" TIME OUT !");
+      Serial.print("\nHF Serial "); Serial.print(SerialNum); Serial.print(": TIME OUT !");
     }
     if (sd.mesLength == 0) { // Zczytanie długości wiadomości
       sd.mesLength = readingSerial.read();
@@ -94,7 +96,7 @@ void handleSerialPort_HF_PC(HardwareSerial& readingSerial, HardwareSerial& writi
       readingSerial.readBytes(sd.buffer +1, sd.mesLength -1);
 
       if(memcmp(sd.buffer, zapytanie_HF, zapytanie_HF_LENGTH)==0) {
-        writing_UHF_Serial.write(zapytanie_UHF, zapytanie_UHF_LENGTH); 
+        writing_UHF_Serial.write(zapytanie_UHF, UHF_MESSAGE_LENGTH); 
         writing_HF_Serial.write( zapytanie_HF,  zapytanie_HF_LENGTH);
         LiczbaOdpowiedziUHF = 0;
       } else UHF_init(readingSerial, writing_UHF_Serial, writing_HF_Serial, sd);
@@ -106,7 +108,7 @@ void handleSerialPort_HF_PC(HardwareSerial& readingSerial, HardwareSerial& writi
   }
 }
 void UHF_init(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial, HardwareSerial& writing_HF_Serial, serialData& sd) {
-  static const int okHFresponse=6, pytL1=20, pytL7=5, pytL8=6, UHFL=8;
+  static const int okHFresponse=6, pytL1=20, pytL7=5, pytL8=6;
   static const char pyt1[pytL1] = {0x14, 0xFF, 0x81, 0x81, 0x00, 0x00, 0x08, 0x01, 0x00, 0x05, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x31, 0xCA};
   static const char pyt2[pytL1] = {0x14, 0xFF, 0x81, 0x83, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAF, 0x28};
   static const char pyt3[pytL1] = {0x14, 0xFF, 0x81, 0x84, 0x00, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0xC9, 0x39};
@@ -120,17 +122,18 @@ void UHF_init(HardwareSerial& readingSerial, HardwareSerial& writing_UHF_Serial,
   static const char okRes7[okHFresponse] = {0x06, 0x00, 0x63, 0x00, 0x86, 0x07};
   static const char okRes8[okHFresponse] = {0x06, 0x00, 0x52, 0x00, 0xFC, 0xA8};
 
-  static const char UHFinit0[UHFL] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; 
-  static const char UHFinit1[UHFL] = {0x01, 0x00, 0x00, 0xF0, 0x18, 0x00, 0x00, 0x00};
-  static const char UHFinit2[UHFL] = {0x01, 0x00, 0x14, 0x01, 0xC8, 0x00, 0x00, 0x00};
-  static const char UHFinit3[UHFL] = {0x01, 0x00, 0x06, 0x07, 0xC8, 0x00, 0x00, 0x00};
-  static const char UHFinit4[UHFL] = {0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00};
+  static const char UHFinit0[UHF_MESSAGE_LENGTH] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  static const char UHFinit1[UHF_MESSAGE_LENGTH] = {0x01, 0x00, 0x00, 0xF0, 0x18, 0x00, 0x00, 0x00};
+  static const char UHFinit2[UHF_MESSAGE_LENGTH] = {0x01, 0x00, 0x14, 0x01, 0xC8, 0x00, 0x00, 0x00};
+  static const char UHFinit3[UHF_MESSAGE_LENGTH] = {0x01, 0x00, 0x06, 0x07, 0xC8, 0x00, 0x00, 0x00};
+  static const char UHFinit4[UHF_MESSAGE_LENGTH] = {0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00};
   
 
   if(memcmp(sd.buffer, pyt1, pytL1) == 0) {
     inicjalizacja=true;
-    writing_HF_Serial.write(pyt1, pytL1);
-    writing_UHF_Serial.write(UHFinit1, UHFL); writing_UHF_Serial.write(UHFinit2, UHFL); writing_UHF_Serial.write(UHFinit3, UHFL); writing_UHF_Serial.write(UHFinit4, UHFL);
+    writing_HF_Serial.write(pyt1, pytL1);       writing_UHF_Serial.write(UHFinit0, UHF_MESSAGE_LENGTH); 
+    writing_UHF_Serial.write(UHFinit1, UHF_MESSAGE_LENGTH);   writing_UHF_Serial.write(UHFinit2, UHF_MESSAGE_LENGTH); 
+    writing_UHF_Serial.write(UHFinit3, UHF_MESSAGE_LENGTH);   writing_UHF_Serial.write(UHFinit4, UHF_MESSAGE_LENGTH);
   } else if(memcmp(sd.buffer, pyt8, pytL8)==0) {
     inicjalizacja=false;
     writing_HF_Serial.write(pyt8, pytL8);

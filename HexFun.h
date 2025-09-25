@@ -5,7 +5,9 @@
 
 #define BUFFER_SIZE 256
 #define FRAME_TIMEOUT 100    // [ms]
+#define FRAME_UHF_TIMEOUT 10 // [ms]
 #define UHF_MESSAGE_LENGTH 8 // Oczekiwana długość wiadomości UHF w [bajtach]
+inline static unsigned int Distance = 8;
 
 struct serialData {
   unsigned mesLength = 0;

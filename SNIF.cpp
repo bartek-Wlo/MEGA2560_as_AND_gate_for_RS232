@@ -13,8 +13,9 @@ const byte stopDeclaring[4] = {0x55, 0x33, 0xFF, 0xCC}; // Koniec deklarowania
 void handleSerialPort_HF(Stream& readingSerial, Stream& writingSerial, serialData& sd, const char* SerialNum) {
   if (readingSerial.available()) {
     if ((  sd.mesLength!=0  )&&(  millis()-sd.mesTime > FRAME_TIMEOUT  )) {
-      sd.mesLength = 0;
       Serial.print("\nHF Serial "); Serial.print(SerialNum); Serial.print(": TIME OUT !");
+      Serial.print(millis()-sd.mesTime); Serial.print(" [ms] Message length: "); printHex(sd.buffer[0]);
+      sd.mesLength = 0;
     }
     if (sd.mesLength == 0) {
       sd.mesLength = readingSerial.read();
@@ -88,7 +89,7 @@ void handleSerialPortCommunication(HardwareSerial& comSerial) {
         for (int i = 0; i < 4; ++i) { ordered[i] = buffer[(pos + i) % 4]; }
         if(distanceIsDeclaring) {
           if(ordered[0]==ordered[1] && ordered[0]==ordered[2] && ordered[0]==ordered[3]) Distance = ordered[0];
-          if (memcmp(ordered, stopDeclaring, 4) == 0)  {
+          else if (memcmp(ordered, stopDeclaring, 4) == 0)  {
             distanceIsDeclaring = false; Serial.print("\n--- MEGA2560 --------------- STOP Declaring Distance --- D = "); Serial.println(Distance);
           }
         } else if (memcmp(ordered, turnToSnif, 4) == 0) {
@@ -105,6 +106,6 @@ void handleSerialPortCommunication(HardwareSerial& comSerial) {
           distanceIsDeclaring = true; Serial.println("\n--- MEGA2560 --------------- Declaring Distance ---");
         }
       }
-    } //else  if (hexCharTem == '\n' || hexCharTem == '\r') 55 33 CC 0F/F0
+    } //else  if (hexCharTem == '\n' || hexCharTem == '\r')
   }
 }

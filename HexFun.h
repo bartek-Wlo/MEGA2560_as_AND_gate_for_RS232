@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 128
 #define FRAME_TIMEOUT 100    // [ms]
 #define FRAME_UHF_TIMEOUT 10 // [ms]
 #define UHF_MESSAGE_LENGTH 8 // Oczekiwana długość wiadomości UHF w [bajtach]

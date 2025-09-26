@@ -1,399 +1,360 @@
-namespace praktykaZawdowa;
 using System;
 using System.Drawing;
+using System.IO;
 using System.IO.Ports;
-using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-using System.ComponentModel;
-using System.Globalization;
+using System.Text.RegularExpressions;
+using System.Linq;
 
-public partial class Form1 : Form
+namespace SerialTerminalApp
 {
-    // --- DEKLARACJA KOMPONENTÓW INTERFEJSU UŻYTKOWNIKA ---
-    private Button? btnSnifMode;
-    private Button? btnAndGateMode;
-    private Button? btnToggleSending;
-    private Button? btnManualSend;
-    private Button? btnConnect;
-    private Button? btnRefreshPorts;
-    private TextBox? txtSendData;
-    private ComboBox? cmbComPorts;
-    private Label? lblComPort;
-    private Label? lblSendData;
-
-    private TextBox? txtMainLog;
-    private TextBox? txtLog1;
-    private TextBox? txtLog2;
-    private TextBox? txtLog3;
-    private TextBox? txtLog4;
-    private TableLayoutPanel? tableLayoutPanelLogs;
-
-    private SerialPort? serialPort;
-    private IContainer? components = null;
-
-    public Form1()
+    public partial class Form1 : Form
     {
-        InitializeComponent();
-        InitializeSerialPort();
-        LoadAvailableComPorts();
-    }
-
-    #region Inicjalizacja GUI
-
-    private void InitializeComponent()
-    {
-        this.components = new Container();
-        this.btnSnifMode = new Button();
-        this.btnAndGateMode = new Button();
-        this.btnToggleSending = new Button();
-        this.btnManualSend = new Button();
-        this.btnConnect = new Button();
-        this.btnRefreshPorts = new Button();
-        this.txtSendData = new TextBox();
-        this.cmbComPorts = new ComboBox();
-        this.lblComPort = new Label();
-        this.lblSendData = new Label();
-        this.txtMainLog = new TextBox();
-        this.tableLayoutPanelLogs = new TableLayoutPanel();
-        this.txtLog1 = new TextBox();
-        this.txtLog2 = new TextBox();
-        this.txtLog3 = new TextBox();
-        this.txtLog4 = new TextBox();
+        private SerialPort? _serialPort;
         
-        this.SuspendLayout();
-        
-        this.ClientSize = new System.Drawing.Size(800, 600);
-        this.Text = "Terminal RS232 - do Serial0 MEGA2560 - do sterowania przełączania trybu pracy";
-        this.Name = "Form1";
-        this.StartPosition = FormStartPosition.CenterScreen;
-        this.WindowState = FormWindowState.Maximized;
-        this.FormClosing += new FormClosingEventHandler(this.Form1_FormClosing);
+        // Zmienne stanu dla maszyny routującej
+        private readonly StringBuilder _lineBuffer = new StringBuilder();
+        private RichTextBox? _currentRoutingTarget;
+        private bool _isNewLine = true;
 
-        this.lblComPort.AutoSize = true;
-        this.lblComPort.Location = new System.Drawing.Point(12, 15);
-        this.lblComPort.Text = "Wybierz Port COM:";
+        private const string SendDataPlaceholder = "ASCII, np. 123456 to HEX 0x12 0x34 0x56";
+        private const string DistancePlaceholder = "Wprowadź odległość (0-64)";
 
-        this.cmbComPorts.DropDownStyle = ComboBoxStyle.DropDownList;
-        this.cmbComPorts.FormattingEnabled = true;
-        this.cmbComPorts.Location = new System.Drawing.Point(120, 12);
-        this.cmbComPorts.Size = new System.Drawing.Size(121, 21);
-
-        this.btnConnect.Location = new System.Drawing.Point(250, 10);
-        this.btnConnect.Size = new System.Drawing.Size(100, 23);
-        this.btnConnect.Text = "Połącz";
-        this.btnConnect.Click += new System.EventHandler(this.btnConnect_Click);
-
-        this.btnRefreshPorts.Location = new System.Drawing.Point(360, 10);
-        this.btnRefreshPorts.Size = new System.Drawing.Size(100, 23);
-        this.btnRefreshPorts.Text = "Odśwież";
-        this.btnRefreshPorts.Click += new System.EventHandler(this.btnRefreshPorts_Click);
-
-        this.btnSnifMode.Location = new System.Drawing.Point(15, 60);
-        this.btnSnifMode.Size = new System.Drawing.Size(226, 30);
-        this.btnSnifMode.Text = "Tryb pracy SNIFer";
-        this.btnSnifMode.Click += new System.EventHandler(this.btnSnifMode_Click);
-
-        this.btnAndGateMode.Location = new System.Drawing.Point(15, 100);
-        this.btnAndGateMode.Size = new System.Drawing.Size(226, 30);
-        this.btnAndGateMode.Text = "Tryb pracy AND gate";
-        this.btnAndGateMode.Click += new System.EventHandler(this.btnAndGateMode_Click);
-
-        this.btnToggleSending.Location = new System.Drawing.Point(15, 140);
-        this.btnToggleSending.Size = new System.Drawing.Size(226, 30);
-        this.btnToggleSending.Text = "Włącz/Wyłącz wysyłanie danych";
-        this.btnToggleSending.Click += new System.EventHandler(this.btnToggleSending_Click);
-
-        this.lblSendData.AutoSize = true;
-        this.lblSendData.Location = new System.Drawing.Point(260, 60);
-        this.lblSendData.Text = "Dane do wysłania (HEX, np. 123456 jako 0x12 0x34 0x56):";
-
-        this.txtSendData.Location = new System.Drawing.Point(263, 76);
-        this.txtSendData.Size = new System.Drawing.Size(300, 20);
-        this.txtSendData.Anchor = (AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
-        // ZMIANA: Dodanie obsługi zdarzenia naciśnięcia klawisza
-        this.txtSendData.KeyDown += new KeyEventHandler(this.txtSendData_KeyDown);
-
-        this.btnManualSend.Location = new System.Drawing.Point(263, 102);
-        this.btnManualSend.Size = new System.Drawing.Size(100, 23);
-        this.btnManualSend.Text = "Wyślij";
-        this.btnManualSend.Click += new System.EventHandler(this.btnManualSend_Click);
-
-        this.txtMainLog.Location = new System.Drawing.Point(15, 190);
-        this.txtMainLog.Multiline = true;
-        this.txtMainLog.ReadOnly = true;
-        this.txtMainLog.ScrollBars = ScrollBars.Vertical;
-        this.txtMainLog.Size = new System.Drawing.Size(760, 120);
-        this.txtMainLog.Font = new Font("Consolas", 9.75F, FontStyle.Regular, GraphicsUnit.Point);
-        this.txtMainLog.Anchor = (AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right);
-
-        this.tableLayoutPanelLogs.Location = new System.Drawing.Point(15, 320);
-        this.tableLayoutPanelLogs.Size = new System.Drawing.Size(760, 260);
-        this.tableLayoutPanelLogs.Anchor = (AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right);
-        this.tableLayoutPanelLogs.ColumnCount = 2;
-        this.tableLayoutPanelLogs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        this.tableLayoutPanelLogs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        this.tableLayoutPanelLogs.RowCount = 2;
-        this.tableLayoutPanelLogs.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-        this.tableLayoutPanelLogs.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-
-        var logTextBoxes = new[] { this.txtLog1, this.txtLog2, this.txtLog3, this.txtLog4 };
-        foreach (var textBox in logTextBoxes)
+        public Form1()
         {
-            textBox.Multiline = true;
-            textBox.ReadOnly = true;
-            textBox.ScrollBars = ScrollBars.Vertical;
-            textBox.Font = new Font("Consolas", 9.75F, FontStyle.Regular, GraphicsUnit.Point);
-            textBox.Dock = DockStyle.Fill;
+            InitializeComponent();
+            this.WindowState = FormWindowState.Maximized;
+            InitializeCustomComponents();
+            LoadAvailableComPorts();
+            UpdateControlsState(false);
         }
 
-        this.tableLayoutPanelLogs.Controls.Add(this.txtLog1, 0, 0);
-        this.tableLayoutPanelLogs.Controls.Add(this.txtLog2, 1, 0);
-        this.tableLayoutPanelLogs.Controls.Add(this.txtLog3, 0, 1);
-        this.tableLayoutPanelLogs.Controls.Add(this.txtLog4, 1, 1);
-        
-        this.Controls.AddRange(new Control[] {
-            this.lblComPort, this.cmbComPorts, this.btnConnect, this.btnRefreshPorts,
-            this.btnSnifMode, this.btnAndGateMode, this.btnToggleSending, this.lblSendData,
-            this.txtSendData, this.btnManualSend, this.txtMainLog, this.tableLayoutPanelLogs
-        });
-        
-        this.ResumeLayout(false);
-        this.PerformLayout();
-        ToggleControls(false);
-    }
-
-    #endregion
-
-    #region Logika Aplikacji
-
-    private void InitializeSerialPort()
-    {
-        serialPort = new SerialPort();
-        serialPort.DataReceived += new SerialDataReceivedEventHandler(SerialPort_DataReceived);
-    }
-
-    private void LoadAvailableComPorts()
-    {
-        if (cmbComPorts == null) return;
-        cmbComPorts.Items.Clear();
-        string[] portNames = SerialPort.GetPortNames();
-        if (portNames.Length > 0)
+        private void InitializeCustomComponents()
         {
-            cmbComPorts.Items.AddRange(portNames);
-            cmbComPorts.SelectedIndex = 0;
+            var monoFont = new Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            rtbRawLog.Font = monoFont;
+            rtbLog00.Font = monoFont;
+            rtbLog1.Font = monoFont;
+            rtbLog2.Font = monoFont;
+            rtbLog3.Font = monoFont;
+            rtbLog4.Font = monoFont;
+
+            txtSendData.KeyDown += TxtSendData_KeyDown;
+            txtDistance.KeyDown += TxtDistance_KeyDown;
+
+            SetupPlaceholderText(txtSendData, SendDataPlaceholder);
+            SetupPlaceholderText(txtDistance, DistancePlaceholder);
         }
-        else
-        {
-            cmbComPorts.Text = "Brak portów";
-        }
-    }
 
-    private void btnConnect_Click(object? sender, EventArgs e)
-    {
-        if (serialPort == null) return;
-        if (serialPort.IsOpen)
+        private void SetupPlaceholderText(TextBox textBox, string placeholder)
         {
-            serialPort.Close();
-            if (btnConnect != null) btnConnect.Text = "Połącz";
-            ToggleControls(false);
+            textBox.Text = placeholder;
+            textBox.ForeColor = Color.Gray;
+            textBox.GotFocus += (sender, e) => RemovePlaceholder(textBox, placeholder);
+            textBox.LostFocus += (sender, e) => AddPlaceholder(textBox, placeholder);
         }
-        else
+
+        private void RemovePlaceholder(TextBox textBox, string placeholder)
         {
-            if (cmbComPorts?.SelectedItem == null)
+            if (textBox.Text == placeholder)
             {
-                MessageBox.Show("Proszę wybrać port COM.", "Informacja", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            try
-            {
-                serialPort.PortName = cmbComPorts.SelectedItem.ToString() ?? "";
-                serialPort.BaudRate = 115200;
-                serialPort.Parity = Parity.None;
-                serialPort.DataBits = 8;
-                serialPort.StopBits = StopBits.One;
-                serialPort.Open();
-                if (btnConnect != null) btnConnect.Text = "Rozłącz";
-                ToggleControls(true);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Błąd otwarcia portu COM: " + ex.Message, "Błąd", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                textBox.Text = "";
+                textBox.ForeColor = Color.Black;
             }
         }
-    }
 
-    private void btnRefreshPorts_Click(object? sender, EventArgs e) => LoadAvailableComPorts();
-
-    private void SendData(byte[] data)
-    {
-        if (serialPort != null && serialPort.IsOpen)
+        private void AddPlaceholder(TextBox textBox, string placeholder)
         {
-            try
+            if (string.IsNullOrWhiteSpace(textBox.Text))
             {
-                serialPort.Write(data, 0, data.Length);
-                string hexString = BitConverter.ToString(data).Replace("-", " ");
-                LogMessage("WYSŁANO (HEX): " + hexString, txtMainLog);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Błąd podczas wysyłania danych: " + ex.Message, "Błąd", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                textBox.Text = placeholder;
+                textBox.ForeColor = Color.Gray;
             }
         }
-        else
+
+        private void LoadAvailableComPorts()
         {
-            MessageBox.Show("Port COM nie jest otwarty.", "Informacja", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-    }
-    
-    // ZMIANA: Logika prefiksów przeniesiona tutaj
-    private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
-    {
-        if (serialPort == null || !serialPort.IsOpen) return;
-        try
-        {
-            int bytesToRead = serialPort.BytesToRead;
-            byte[] buffer = new byte[bytesToRead];
-            serialPort.Read(buffer, 0, bytesToRead);
-
-            string receivedText = Encoding.ASCII.GetString(buffer);
-            string messageContent = receivedText.Trim();
-
-            TextBox? targetLog;
-            string logPrefix;
-
-            if (receivedText.Contains("01:"))
+            cmbComPorts.Items.Clear();
+            string[] portNames = SerialPort.GetPortNames();
+            if (portNames.Length > 0)
             {
-                targetLog = txtLog1;
-                logPrefix = ""; // Brak prefiksu dla dedykowanego okna
-            }
-            else if (receivedText.Contains("02:"))
-            {
-                targetLog = txtLog2;
-                logPrefix = "";
-            }
-            else if (receivedText.Contains("03:"))
-            {
-                targetLog = txtLog3;
-                logPrefix = "";
-            }
-            else if (receivedText.Contains("04:"))
-            {
-                targetLog = txtLog4;
-                logPrefix = "";
+                cmbComPorts.Items.AddRange(portNames);
+                cmbComPorts.SelectedIndex = 0;
+                btnConnect.Enabled = true;
             }
             else
             {
-                targetLog = txtMainLog;
-                logPrefix = "OTRZYMANO: "; // Prefiks tylko dla głównego okna
+                cmbComPorts.Items.Add("Brak portów");
+                cmbComPorts.SelectedIndex = 0;
+                btnConnect.Enabled = false;
             }
-
-            LogMessage(logPrefix + messageContent, targetLog);
-        }
-        catch (Exception)
-        {
-            // Pusty blok catch
-        }
-    }
-
-    private void btnSnifMode_Click(object? sender, EventArgs e) => SendData(new byte[] { 0x55, 0x33, 0x0F, 0xCC });
-    private void btnAndGateMode_Click(object? sender, EventArgs e) => SendData(new byte[] { 0x55, 0x33, 0xF0, 0xCC });
-    private void btnToggleSending_Click(object? sender, EventArgs e) => SendData(new byte[] { 0x55, 0x33, 0xEE, 0xCC });
-
-    private void btnManualSend_Click(object? sender, EventArgs e)
-    {
-        if (txtSendData == null) return;
-        string hexInput = txtSendData.Text.Replace(" ", "").Trim();
-        if (string.IsNullOrEmpty(hexInput))
-        {
-            MessageBox.Show("Pole danych do wysłania jest puste.", "Informacja", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
         }
 
-        if (hexInput.Length % 2 != 0)
+        private void UpdateControlsState(bool isConnected)
         {
-            MessageBox.Show("Nieprawidłowa długość ciągu HEX. Liczba znaków musi być parzysta.", "Błąd formatu", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return;
+            btnConnect.Text = isConnected ? "Rozłącz" : "Połącz";
+            cmbComPorts.Enabled = !isConnected;
+            btnRefreshPorts.Enabled = !isConnected;
+
+            btnSnifMode.Enabled = isConnected;
+            btnAndGateMode.Enabled = isConnected;
+            btnToggleSending.Enabled = isConnected;
+            txtSendData.Enabled = isConnected;
+            btnManualSend.Enabled = isConnected;
+            txtDistance.Enabled = isConnected;
+            btnSetDistance.Enabled = isConnected;
+
+            btnSaveLog.Enabled = true;
+            btnClearLogs.Enabled = true;
         }
 
-        try
+        private void AppendTextToRichTextBox(RichTextBox rtb, string text, Color color)
         {
-            byte[] data = new byte[hexInput.Length / 2];
-            for (int i = 0; i < data.Length; i++)
+            if (rtb.InvokeRequired)
             {
-                string hexByte = hexInput.Substring(i * 2, 2);
-                data[i] = byte.Parse(hexByte, NumberStyles.HexNumber);
+                rtb.Invoke(new Action(() => AppendTextToRichTextBox(rtb, text, color)));
+                return;
             }
-            SendData(data);
+            rtb.SelectionStart = rtb.TextLength;
+            rtb.SelectionLength = 0;
+            rtb.SelectionColor = color;
+            rtb.AppendText(text);
+            rtb.SelectionColor = rtb.ForeColor; // Reset to default
+            rtb.ScrollToCaret();
         }
-        catch (Exception ex)
+
+        private void LogSystemMessage(string message)
         {
-            MessageBox.Show("Nieprawidłowy format danych HEX. Wpisz ciąg znaków 0-9 i A-F.\nSzczegóły: " + ex.Message, "Błąd formatu", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            string timestamp = $"[{DateTime.Now:HH:mm:ss.fff}] ";
+            AppendTextToRichTextBox(rtbLog00, timestamp, Color.Gray);
+            AppendTextToRichTextBox(rtbLog00, message + Environment.NewLine, rtbLog00.ForeColor);
+        }
+
+        private void SendData(string data)
+        {
+            if (_serialPort != null && _serialPort.IsOpen)
+            {
+                try
+                {
+                    string timestamp = $"[{DateTime.Now:HH:mm:ss.fff}] ";
+                    string message = $"WYSŁANO: {data}";
+                    
+                    AppendTextToRichTextBox(rtbRawLog, Environment.NewLine, rtbRawLog.ForeColor); // nowa linia przed wysłaniem
+                    AppendTextToRichTextBox(rtbRawLog, timestamp, Color.Gray);
+                    AppendTextToRichTextBox(rtbRawLog, message, Color.Gray);
+                    
+                    _serialPort.Write(data);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Błąd podczas wysyłania danych: {ex.Message}", "Błąd", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
+        private void btnRefreshPorts_Click(object sender, EventArgs e)
+        {
+            LoadAvailableComPorts();
+        }
+
+        private void btnConnect_Click(object sender, EventArgs e)
+        {
+            if (_serialPort != null && _serialPort.IsOpen)
+            {
+                _serialPort.Close();
+                UpdateControlsState(false);
+                LogSystemMessage("Rozłączono z portem.");
+            }
+            else
+            {
+                if (cmbComPorts.SelectedItem == null || cmbComPorts.SelectedItem.ToString() == "Brak portów")
+                {
+                    MessageBox.Show("Wybierz prawidłowy port COM.", "Informacja", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                try
+                {
+                    _serialPort = new SerialPort(cmbComPorts.SelectedItem.ToString())
+                    {
+                        BaudRate = 115200, Parity = Parity.None, DataBits = 8, StopBits = StopBits.One
+                    };
+                    _serialPort.DataReceived += SerialPort_DataReceived;
+                    _serialPort.Open();
+                    UpdateControlsState(true);
+                    LogSystemMessage($"Połączono z portem {_serialPort.PortName}.");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Nie udało się otworzyć portu: {ex.Message}", "Błąd Połączenia", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            if (_serialPort == null || !_serialPort.IsOpen) return;
+            try
+            {
+                string data = _serialPort.ReadExisting();
+                this.BeginInvoke(new Action(() => ProcessReceivedData(data)));
+            }
+            catch (Exception) { /* Ignoruj błędy podczas zamykania */ }
+        }
+
+        private void ProcessReceivedData(string data)
+        {
+            foreach (char c in data)
+            {
+                // Zawsze loguj surowe dane
+                if (_isNewLine)
+                {
+                    string timestamp = $"[{DateTime.Now:HH:mm:ss.fff}] ";
+                    AppendTextToRichTextBox(rtbRawLog, timestamp, Color.Gray);
+                }
+                AppendTextToRichTextBox(rtbRawLog, c.ToString(), rtbRawLog.ForeColor);
+
+                // Logika maszyny stanów
+                if (c == '\n')
+                {
+                    if (_currentRoutingTarget != null)
+                    {
+                        AppendTextToRichTextBox(_currentRoutingTarget, Environment.NewLine, _currentRoutingTarget.ForeColor);
+                    }
+                    else // Jeśli linia kończy się zanim znaleziono cel, trafia do rtbLog00
+                    {
+                        if (_isNewLine)
+                        {
+                            string timestamp = $"[{DateTime.Now:HH:mm:ss.fff}] ";
+                            AppendTextToRichTextBox(rtbLog00, timestamp, Color.Gray);
+                        }
+                        AppendTextToRichTextBox(rtbLog00, _lineBuffer.ToString() + Environment.NewLine, rtbLog00.ForeColor);
+                    }
+                    // Reset stanu
+                    _lineBuffer.Clear();
+                    _currentRoutingTarget = null;
+                    _isNewLine = true;
+                    continue;
+                }
+
+                _isNewLine = false;
+
+                if (_currentRoutingTarget != null)
+                {
+                    AppendTextToRichTextBox(_currentRoutingTarget, c.ToString(), _currentRoutingTarget.ForeColor);
+                }
+                else
+                {
+                    _lineBuffer.Append(c);
+                    string currentLine = _lineBuffer.ToString();
+                    RichTextBox? foundTarget = null;
+
+                    if (currentLine.Contains("01:")) foundTarget = rtbLog1;
+                    else if (currentLine.Contains("02:")) foundTarget = rtbLog2;
+                    else if (currentLine.Contains("03:")) foundTarget = rtbLog3;
+                    else if (currentLine.Contains("04:")) foundTarget = rtbLog4;
+                    else if (currentLine.Contains("00:")) foundTarget = rtbLog00;
+
+                    if (foundTarget != null)
+                    {
+                        _currentRoutingTarget = foundTarget;
+                        string timestamp = $"[{DateTime.Now:HH:mm:ss.fff}] ";
+                        AppendTextToRichTextBox(_currentRoutingTarget, timestamp, Color.Gray);
+                        AppendTextToRichTextBox(_currentRoutingTarget, currentLine, _currentRoutingTarget.ForeColor);
+                        _lineBuffer.Clear();
+                    }
+                }
+            }
+        }
+        
+        private void btnSnifMode_Click(object sender, EventArgs e) => SendData("55330FCC");
+        private void btnAndGateMode_Click(object sender, EventArgs e) => SendData("5533F0CC");
+        private void btnToggleSending_Click(object sender, EventArgs e) => SendData("5533EECC");
+
+        private void btnManualSend_Click(object sender, EventArgs e)
+        {
+            string textToSend = txtSendData.Text.Trim();
+            if (string.IsNullOrEmpty(textToSend) || textToSend == SendDataPlaceholder) return;
+            if (textToSend.Length % 2 != 0 || !Regex.IsMatch(textToSend, @"\A\b[0-9a-fA-F]+\b\Z"))
+            {
+                MessageBox.Show("Wprowadzony tekst musi być prawidłowym ciągiem heksadecymalnym (0-9, A-F) o parzystej długości.", "Błąd Walidacji", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            SendData(textToSend.ToUpper());
+            txtSendData.Clear(); // Czyści pole, placeholder pojawi się przy utracie fokusu
+        }
+
+        private void TxtSendData_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                btnManualSend.PerformClick();
+            }
+        }
+
+        private void btnSetDistance_Click(object sender, EventArgs e)
+        {
+            string distanceText = txtDistance.Text.Trim();
+            if (string.IsNullOrEmpty(distanceText) || distanceText == DistancePlaceholder) return;
+            if (!int.TryParse(distanceText, out int distance) || distance < 0 || distance > 64)
+            {
+                MessageBox.Show("Wprowadź liczbę całkowitą z zakresu 0-64.", "Błąd Walidacji", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            string distanceHex = distance.ToString("X2");
+            string repeatedDistance = string.Concat(Enumerable.Repeat(distanceHex, 4));
+            string command = $"5533AACC{repeatedDistance}5533FFCC";
+            SendData(command);
+        }
+
+        private void TxtDistance_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true;
+                btnSetDistance.PerformClick();
+            }
+        }
+
+        private void btnSaveLog_Click(object sender, EventArgs e)
+        {
+            using (SaveFileDialog saveFileDialog = new SaveFileDialog())
+            {
+                saveFileDialog.Filter = "Pliki tekstowe (*.txt)|*.txt|Wszystkie pliki (*.*)|*.*";
+                saveFileDialog.FileName = $"log_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt";
+                saveFileDialog.Title = "Zapisz log do pliku";
+                if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        File.WriteAllText(saveFileDialog.FileName, rtbRawLog.Text);
+                        MessageBox.Show("Log został pomyślnie zapisany.", "Sukces", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Wystąpił błąd podczas zapisu pliku: {ex.Message}", "Błąd zapisu", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        private void btnClearLogs_Click(object sender, EventArgs e)
+        {
+            rtbRawLog.Clear();
+            rtbLog00.Clear();
+            rtbLog1.Clear();
+            rtbLog2.Clear();
+            rtbLog3.Clear();
+            rtbLog4.Clear();
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (_serialPort != null && _serialPort.IsOpen)
+            {
+                _serialPort.Close();
+            }
         }
     }
-    
-    // ZMIANA: Nowa metoda do obsługi naciśnięcia klawisza Enter
-    private void txtSendData_KeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.KeyCode == Keys.Enter)
-        {
-            // Wywołaj zdarzenie kliknięcia przycisku wysyłania
-            btnManualSend_Click(sender, e);
-            // Zablokuj domyślny dźwięk systemowy dla klawisza Enter
-            e.SuppressKeyPress = true; 
-        }
-    }
-
-    private void Form1_FormClosing(object? sender, FormClosingEventArgs e)
-    {
-        if (serialPort != null && serialPort.IsOpen)
-        {
-            serialPort.Close();
-        }
-    }
-
-    private string GetTimestamp() => DateTime.Now.ToString("HH:mm:ss.fff") + ": ";
-    
-    private void LogMessage(string message, TextBox? targetTextBox)
-    {
-        if (targetTextBox == null) return;
-        string timestampedMessage = GetTimestamp() + message + Environment.NewLine;
-        if (targetTextBox.InvokeRequired)
-        {
-            targetTextBox.Invoke(new Action(() => targetTextBox.AppendText(timestampedMessage)));
-        }
-        else
-        {
-            targetTextBox.AppendText(timestampedMessage);
-        }
-    }
-    
-    private void ToggleControls(bool isEnabled)
-    {
-        var controlsToToggle = new Control?[] { 
-            btnSnifMode, btnAndGateMode, btnToggleSending, 
-            btnManualSend, txtSendData 
-        };
-        foreach (var control in controlsToToggle)
-        {
-            if (control != null) control.Enabled = isEnabled;
-        }
-        if (cmbComPorts != null) cmbComPorts.Enabled = !isEnabled;
-        if (btnRefreshPorts != null) btnRefreshPorts.Enabled = !isEnabled;
-    }
-
-    #endregion
-
-    #region Czyszczenie zasobów
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing && (components != null))
-        {
-            components.Dispose();
-        }
-        base.Dispose(disposing);
-    }
-
-    #endregion
 }

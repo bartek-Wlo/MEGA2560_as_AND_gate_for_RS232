@@ -2,30 +2,34 @@
 #define HEXFUN_H
 
 #include <Arduino.h>
+#include <SoftwareSerial.h>
+#include "config.h"
 
-#define BUFFER_SIZE 128
-#define FRAME_TIMEOUT 100    // [ms]
-#define FRAME_UHF_TIMEOUT 10 // [ms]
-#define UHF_MESSAGE_LENGTH 8 // Oczekiwana długość wiadomości UHF w [bajtach]
-inline static unsigned int Distance = 8;
+extern unsigned int Distance;  /* Liczba anten od czujnika UHF do HF włącznie z antenami pod tymi czujnikami */
+extern SoftwareSerial Serial_4;
+extern bool workAsSnifer; // else work as AND gate
 
 struct serialData {
   unsigned mesLength = 0;
   unsigned long mesTime = 0;
-  unsigned char buffer[BUFFER_SIZE];
+  uint8_t buffer[BUFFER_SIZE];
 };
 
-inline byte hexToByte(char hexChar) {
-    if (hexChar >= '0' && hexChar <= '9') return hexChar - '0';
-    if (hexChar >= 'A' && hexChar <= 'F') return hexChar - 'A' + 10;
-    if (hexChar >= 'a' && hexChar <= 'f') return hexChar - 'a' + 10;
-    return 0;
-}
 
-inline void printHex(byte data) {
-    if (data < 0x10) Serial.print("0");
-    Serial.print(data, HEX);
-    Serial.print(" ");
-}
+
+byte hexToByte(char hexChar);
+
+/* Do wysyłania tekstu zawierającego oryginalną wartość do debug */
+void printHex(byte data);
+
+/* Do wysyłania poleceń w HEX do aplikacji */
+void sendHexByte(Stream &port, uint8_t data);
+void sendHexBuffer(Stream &port, const uint8_t *buffer, size_t length);
+void reportToControlApplication(Stream &port, uint8_t* response);
+
+
+//  CRC-16/MCRF4XX
+uint16_t calculate_crc16_mcrf4xx(uint8_t* data, size_t length);
+void append_crc16_to_array(uint8_t tab[], size_t dataLength);
 
 #endif
